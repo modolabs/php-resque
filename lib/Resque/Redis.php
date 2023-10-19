@@ -8,6 +8,8 @@
  */
 class Resque_Redis
 {
+	private $driver;
+
 	/**
 	 * Redis namespace
 	 * @var string
