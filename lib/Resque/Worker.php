@@ -156,7 +156,7 @@ class Resque_Worker
 			$job = false;
 			if(!$this->paused) {
 				if($blocking === true) {
-					$this->logger->log(Psr\Log\LogLevel::INFO, 'Starting blocking with timeout of {interval}', array('interval' => $interval));
+					$this->logger->info("Starting blocking with timeout of {$interval}");
 					$this->updateProcLine('Waiting for ' . implode(',', $this->queues) . ' with blocking timeout ' . $interval);
 				} else {
 					$this->updateProcLine('Waiting for ' . implode(',', $this->queues) . ' with interval ' . $interval);
@@ -174,7 +174,7 @@ class Resque_Worker
 				if($blocking === false)
 				{
 					// If no job was found, we sleep for $interval before continuing and checking again
-					$this->logger->log(Psr\Log\LogLevel::INFO, 'Sleeping for {interval}', array('interval' => $interval));
+					$this->logger->info("Sleeping for {$interval}");
 					if($this->paused) {
 						$this->updateProcLine('Paused');
 					}
@@ -188,7 +188,7 @@ class Resque_Worker
 				continue;
 			}
 
-			$this->logger->log(Psr\Log\LogLevel::NOTICE, 'Starting work on {job}', array('job' => $job));
+			$this->logger->info("Starting work on {$job}");
 			Resque_Event::trigger('beforeFork', $job);
 			$this->workingOn($job);
 
@@ -198,7 +198,7 @@ class Resque_Worker
 			if ($this->child === 0 || $this->child === false) {
 				$status = 'Processing ' . $job->queue . ' since ' . date('Y-m-d h:i:s');
 				$this->updateProcLine($status);
-				$this->logger->log(Psr\Log\LogLevel::INFO, $status);
+				$this->logger->info($status);
 				$this->perform($job);
 				if ($this->child === 0) {
 					exit(0);
@@ -209,7 +209,7 @@ class Resque_Worker
 				// Parent process, sit and wait
 				$status = 'Forked ' . $this->child . ' at ' . date('Y-m-d h:i:s');
 				$this->updateProcLine($status);
-				$this->logger->log(Psr\Log\LogLevel::INFO, $status);
+				$this->logger->info($status);
 
 				// Wait until the child process finishes before continuing
 				pcntl_wait($status);
@@ -240,13 +240,13 @@ class Resque_Worker
 			$job->perform();
 		}
 		catch(Exception $e) {
-			$this->logger->log(Psr\Log\LogLevel::CRITICAL, '{job} has failed {stack}', array('job' => $job, 'stack' => $e));
+			$this->logger->critical("{$job} has failed {$e->getMessage()}");
 			$job->fail($e);
 			return;
 		}
 
 		$job->updateStatus(Resque_Job_Status::STATUS_COMPLETE);
-		$this->logger->log(Psr\Log\LogLevel::NOTICE, '{job} has finished', array('job' => $job));
+		$this->logger->info("{$job} has finished");
 	}
 
 	/**
@@ -264,15 +264,15 @@ class Resque_Worker
 		if($blocking === true) {
 			$job = Resque_Job::reserveBlocking($queues, $timeout);
 			if($job) {
-				$this->logger->log(Psr\Log\LogLevel::INFO, 'Found job on {queue}', array('queue' => $job->queue));
+				$this->logger->info("Found job on {$job->queue}");
 				return $job;
 			}
 		} else {
 			foreach($queues as $queue) {
-				$this->logger->log(Psr\Log\LogLevel::INFO, 'Checking {queue} for jobs', array('queue' => $queue));
+				$this->logger->info("Checking {$queue} for jobs");
 				$job = Resque_Job::reserve($queue);
 				if($job) {
-					$this->logger->log(Psr\Log\LogLevel::INFO, 'Found job on {queue}', array('queue' => $job->queue));
+					$this->logger->info("Found job on {$job->queue}");
 					return $job;
 				}
 			}
@@ -352,7 +352,7 @@ class Resque_Worker
 		pcntl_signal(SIGUSR1, array($this, 'killChild'));
 		pcntl_signal(SIGUSR2, array($this, 'pauseProcessing'));
 		pcntl_signal(SIGCONT, array($this, 'unPauseProcessing'));
-		$this->logger->log(Psr\Log\LogLevel::DEBUG, 'Registered signals');
+		$this->logger->debug('Registered signals');
 	}
 
 	/**
@@ -360,7 +360,7 @@ class Resque_Worker
 	 */
 	public function pauseProcessing()
 	{
-		$this->logger->log(Psr\Log\LogLevel::NOTICE, 'USR2 received; pausing job processing');
+		$this->logger->info('USR2 received; pausing job processing');
 		$this->paused = true;
 	}
 
@@ -370,7 +370,7 @@ class Resque_Worker
 	 */
 	public function unPauseProcessing()
 	{
-		$this->logger->log(Psr\Log\LogLevel::NOTICE, 'CONT received; resuming job processing');
+		$this->logger->info('CONT received; resuming job processing');
 		$this->paused = false;
 	}
 
@@ -381,7 +381,7 @@ class Resque_Worker
 	public function shutdown()
 	{
 		$this->shutdown = true;
-		$this->logger->log(Psr\Log\LogLevel::NOTICE, 'Shutting down');
+		$this->logger->info('Shutting down');
 	}
 
 	/**
@@ -401,18 +401,18 @@ class Resque_Worker
 	public function killChild()
 	{
 		if(!$this->child) {
-			$this->logger->log(Psr\Log\LogLevel::DEBUG, 'No child to kill.');
+			$this->logger->debug('No child to kill.');
 			return;
 		}
 
-		$this->logger->log(Psr\Log\LogLevel::INFO, 'Killing child at {child}', array('child' => $this->child));
+		$this->logger->info("Killing child at {$this->child}");
 		if(exec('ps -o pid,state -p ' . $this->child, $output, $returnCode) && $returnCode != 1) {
-			$this->logger->log(Psr\Log\LogLevel::DEBUG, 'Child {child} found, killing.', array('child' => $this->child));
+			$this->logger->debug("Child {$this->child} found, killing.");
 			posix_kill($this->child, SIGKILL);
 			$this->child = null;
 		}
 		else {
-			$this->logger->log(Psr\Log\LogLevel::INFO, 'Child {child} not found, restarting.', array('child' => $this->child));
+			$this->logger->info("Child {$this->child} not found, restarting.");
 			$this->shutdown();
 		}
 	}
@@ -435,7 +435,7 @@ class Resque_Worker
 				if($host != $this->hostname || in_array($pid, $workerPids) || $pid == getmypid()) {
 					continue;
 				}
-				$this->logger->log(Psr\Log\LogLevel::INFO, 'Pruning dead worker: {worker}', array('worker' => (string)$worker));
+				$this->logger->info("Pruning dead worker: {$worker}");
 				$worker->unregisterWorker();
 			}
 		}
